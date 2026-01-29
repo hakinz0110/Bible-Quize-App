@@ -1,0 +1,401 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import classicData from "../bible_quiz_classic/questions.json";
+import practiceData from "../bible_quiz_practice/questions.json";
+import challengeData from "../bible_quiz_challenge/questions.json";
+
+const TIME_LIMIT_SECONDS = 60;
+
+const styles = {
+  container: {
+    maxWidth: 1100,
+    margin: "0 auto",
+    padding: "32px 20px 60px",
+  },
+  header: {
+    background: "linear-gradient(120deg, #1d4ed8, #2563eb)",
+    color: "white",
+    borderRadius: 20,
+    padding: "28px 32px",
+    marginBottom: 28,
+    boxShadow: "0 20px 40px rgba(37, 99, 235, 0.2)",
+  },
+  subtitle: {
+    color: "rgba(255, 255, 255, 0.8)",
+    marginTop: 6,
+  },
+  tabs: {
+    display: "flex",
+    gap: 12,
+    flexWrap: "wrap",
+    marginBottom: 18,
+  },
+  tab: (active) => ({
+    padding: "10px 16px",
+    borderRadius: 999,
+    border: "1px solid",
+    borderColor: active ? "#2563eb" : "#cbd5f5",
+    background: active ? "#dbeafe" : "white",
+    color: active ? "#1d4ed8" : "#1e293b",
+    fontWeight: 600,
+  }),
+  cardGrid: {
+    display: "grid",
+    gap: 18,
+    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+    marginBottom: 32,
+  },
+  card: {
+    background: "white",
+    padding: 18,
+    borderRadius: 16,
+    border: "1px solid #e2e8f0",
+    boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
+  },
+  button: (variant = "primary") => ({
+    padding: "10px 16px",
+    borderRadius: 10,
+    border: "none",
+    background: variant === "primary" ? "#2563eb" : "#e2e8f0",
+    color: variant === "primary" ? "white" : "#0f172a",
+    fontWeight: 600,
+    marginRight: 10,
+    marginTop: 8,
+  }),
+  optionButton: {
+    width: "100%",
+    textAlign: "left",
+    padding: "10px 14px",
+    marginBottom: 10,
+    borderRadius: 10,
+    border: "1px solid #e2e8f0",
+    background: "white",
+  },
+  tag: (tone = "neutral") => ({
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "4px 10px",
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 600,
+    background:
+      tone === "good" ? "#dcfce7" : tone === "bad" ? "#fee2e2" : "#e2e8f0",
+    color: tone === "good" ? "#166534" : tone === "bad" ? "#991b1b" : "#1e293b",
+    marginLeft: 8,
+  }),
+};
+
+const shuffleArray = (items) => {
+  const array = [...items];
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+};
+
+export default function Home() {
+  const [mode, setMode] = useState("classic");
+
+  const [classicQuestions, setClassicQuestions] = useState([]);
+  const [classicIndex, setClassicIndex] = useState(0);
+  const [classicScore, setClassicScore] = useState(0);
+  const [classicFeedback, setClassicFeedback] = useState("");
+  const [classicSummary, setClassicSummary] = useState(null);
+
+  const [practiceQuestions, setPracticeQuestions] = useState([]);
+  const [practiceIndex, setPracticeIndex] = useState(0);
+  const [practiceHint, setPracticeHint] = useState(false);
+  const [practiceFeedback, setPracticeFeedback] = useState("");
+  const [practiceBook, setPracticeBook] = useState("All");
+
+  const [challengeQuestions, setChallengeQuestions] = useState([]);
+  const [challengeIndex, setChallengeIndex] = useState(0);
+  const [challengeScore, setChallengeScore] = useState(0);
+  const [challengeStreak, setChallengeStreak] = useState(0);
+  const [challengeBestStreak, setChallengeBestStreak] = useState(0);
+  const [challengeRemaining, setChallengeRemaining] = useState(TIME_LIMIT_SECONDS);
+  const [challengeRunning, setChallengeRunning] = useState(false);
+  const [challengeEndTime, setChallengeEndTime] = useState(null);
+  const [challengeFeedback, setChallengeFeedback] = useState("");
+
+  const practiceBooks = useMemo(() => {
+    const books = new Set(practiceData.map((q) => q.book));
+    return ["All", ...Array.from(books).sort()];
+  }, []);
+
+  const startClassic = () => {
+    const selected = shuffleArray(classicData).slice(0, 10);
+    setClassicQuestions(selected);
+    setClassicIndex(0);
+    setClassicScore(0);
+    setClassicFeedback("");
+    setClassicSummary(null);
+  };
+
+  const answerClassic = (choiceIndex) => {
+    if (!classicQuestions.length || classicSummary) return;
+    const current = classicQuestions[classicIndex];
+    const correct = choiceIndex === current.answer_index;
+    setClassicFeedback(correct ? "Correct!" : `Not quite. Answer: ${current.options[current.answer_index]}`);
+    if (correct) {
+      setClassicScore((prev) => prev + 1);
+    }
+  };
+
+  const nextClassic = () => {
+    if (classicIndex + 1 >= classicQuestions.length) {
+      setClassicSummary({
+        score: classicScore,
+        total: classicQuestions.length,
+      });
+      return;
+    }
+    setClassicIndex((prev) => prev + 1);
+    setClassicFeedback("");
+  };
+
+  const startPractice = () => {
+    const filtered = practiceBook === "All"
+      ? practiceData
+      : practiceData.filter((q) => q.book === practiceBook);
+    setPracticeQuestions(filtered);
+    setPracticeIndex(0);
+    setPracticeHint(false);
+    setPracticeFeedback("");
+  };
+
+  const answerPractice = (choiceIndex) => {
+    if (!practiceQuestions.length) return;
+    const current = practiceQuestions[practiceIndex];
+    const correct = choiceIndex === current.answer_index;
+    setPracticeFeedback(correct ? "Correct!" : `Answer: ${current.options[current.answer_index]}`);
+  };
+
+  const nextPractice = () => {
+    if (practiceIndex + 1 >= practiceQuestions.length) {
+      setPracticeFeedback("You have reached the end of this practice set.");
+      return;
+    }
+    setPracticeIndex((prev) => prev + 1);
+    setPracticeHint(false);
+    setPracticeFeedback("");
+  };
+
+  const startChallenge = () => {
+    setChallengeQuestions(shuffleArray(challengeData));
+    setChallengeIndex(0);
+    setChallengeScore(0);
+    setChallengeStreak(0);
+    setChallengeBestStreak(0);
+    setChallengeFeedback("");
+    setChallengeRunning(true);
+    setChallengeRemaining(TIME_LIMIT_SECONDS);
+    setChallengeEndTime(Date.now() + TIME_LIMIT_SECONDS * 1000);
+  };
+
+  const answerChallenge = (choiceIndex) => {
+    if (!challengeRunning || !challengeQuestions.length) return;
+    const current = challengeQuestions[challengeIndex];
+    const correct = choiceIndex === current.answer_index;
+    if (correct) {
+      setChallengeScore((prev) => prev + 1);
+      setChallengeStreak((prev) => {
+        const updated = prev + 1;
+        setChallengeBestStreak((best) => Math.max(best, updated));
+        return updated;
+      });
+      setChallengeFeedback("Correct! Keep going.");
+    } else {
+      setChallengeStreak(0);
+      setChallengeFeedback(`Answer: ${current.options[current.answer_index]}`);
+    }
+    setChallengeIndex((prev) => (prev + 1) % challengeQuestions.length);
+  };
+
+  useEffect(() => {
+    if (!challengeRunning || !challengeEndTime) return;
+
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((challengeEndTime - Date.now()) / 1000));
+      setChallengeRemaining(remaining);
+      if (remaining <= 0) {
+        setChallengeRunning(false);
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [challengeRunning, challengeEndTime]);
+
+  return (
+    <main style={styles.container}>
+      <header style={styles.header}>
+        <h1>Bible Quiz Hub</h1>
+        <p style={styles.subtitle}>
+          A single browser page that reads the three quiz folders and lets you play classic, practice, and challenge modes.
+        </p>
+      </header>
+
+      <section style={styles.cardGrid}>
+        <div style={styles.card}>
+          <h3>Classic (CLI)</h3>
+          <p>Folder: <strong>bible_quiz_classic</strong></p>
+          <p>Run in Termux:</p>
+          <code>python main.py</code>
+        </div>
+        <div style={styles.card}>
+          <h3>Practice (CLI)</h3>
+          <p>Folder: <strong>bible_quiz_practice</strong></p>
+          <p>Run in Termux:</p>
+          <code>python main.py</code>
+        </div>
+        <div style={styles.card}>
+          <h3>Challenge (CLI)</h3>
+          <p>Folder: <strong>bible_quiz_challenge</strong></p>
+          <p>Run in Termux:</p>
+          <code>python main.py</code>
+        </div>
+      </section>
+
+      <div style={styles.tabs}>
+        <button style={styles.tab(mode === "classic")} onClick={() => setMode("classic")}>Classic Mode</button>
+        <button style={styles.tab(mode === "practice")} onClick={() => setMode("practice")}>Practice Mode</button>
+        <button style={styles.tab(mode === "challenge")} onClick={() => setMode("challenge")}>Challenge Mode</button>
+      </div>
+
+      {mode === "classic" && (
+        <section style={styles.card}>
+          <h2>Classic Quiz</h2>
+          <p>10 random multiple-choice questions.</p>
+          {!classicQuestions.length && (
+            <button style={styles.button()} onClick={startClassic}>Start Classic Quiz</button>
+          )}
+          {classicQuestions.length > 0 && !classicSummary && (
+            <div>
+              <p><strong>Question {classicIndex + 1} of {classicQuestions.length}</strong></p>
+              <p>{classicQuestions[classicIndex].question}</p>
+              {classicQuestions[classicIndex].options.map((option, idx) => (
+                <button
+                  key={option}
+                  style={styles.optionButton}
+                  onClick={() => answerClassic(idx)}
+                >
+                  {option}
+                </button>
+              ))}
+              {classicFeedback && (
+                <p>
+                  {classicFeedback}
+                  {classicFeedback.startsWith("Correct") ? (
+                    <span style={styles.tag("good")}>Good</span>
+                  ) : (
+                    <span style={styles.tag("bad")}>Review</span>
+                  )}
+                </p>
+              )}
+              <button style={styles.button("secondary")} onClick={nextClassic}>Next</button>
+            </div>
+          )}
+          {classicSummary && (
+            <div>
+              <h3>Summary</h3>
+              <p>
+                Score: {classicSummary.score}/{classicSummary.total}
+                <span style={styles.tag("good")}>Complete</span>
+              </p>
+              <button style={styles.button()} onClick={startClassic}>Play Again</button>
+            </div>
+          )}
+        </section>
+      )}
+
+      {mode === "practice" && (
+        <section style={styles.card}>
+          <h2>Practice Mode</h2>
+          <p>Choose a book and practice with hints.</p>
+          <div>
+            <label htmlFor="book" style={{ fontWeight: 600 }}>Book: </label>
+            <select
+              id="book"
+              value={practiceBook}
+              onChange={(event) => setPracticeBook(event.target.value)}
+              style={{ marginLeft: 8, padding: 6, borderRadius: 8 }}
+            >
+              {practiceBooks.map((book) => (
+                <option key={book} value={book}>{book}</option>
+              ))}
+            </select>
+            <button style={styles.button()} onClick={startPractice}>Load Practice Set</button>
+          </div>
+          {practiceQuestions.length > 0 && (
+            <div style={{ marginTop: 18 }}>
+              <p><strong>Question {practiceIndex + 1} of {practiceQuestions.length}</strong></p>
+              <p>{practiceQuestions[practiceIndex].question}</p>
+              {practiceQuestions[practiceIndex].options.map((option, idx) => (
+                <button
+                  key={option}
+                  style={styles.optionButton}
+                  onClick={() => answerPractice(idx)}
+                >
+                  {option}
+                </button>
+              ))}
+              <div>
+                <button style={styles.button("secondary")} onClick={() => setPracticeHint((prev) => !prev)}>
+                  {practiceHint ? "Hide Hint" : "Show Hint"}
+                </button>
+                <button style={styles.button("secondary")} onClick={() => setPracticeFeedback(`Answer: ${practiceQuestions[practiceIndex].options[practiceQuestions[practiceIndex].answer_index]}`)}>
+                  Reveal Answer
+                </button>
+                <button style={styles.button("secondary")} onClick={nextPractice}>Next</button>
+              </div>
+              {practiceHint && (
+                <p style={{ color: "#1e293b" }}>Hint: {practiceQuestions[practiceIndex].reference}</p>
+              )}
+              {practiceFeedback && <p>{practiceFeedback}</p>}
+            </div>
+          )}
+        </section>
+      )}
+
+      {mode === "challenge" && (
+        <section style={styles.card}>
+          <h2>Challenge Mode</h2>
+          <p>Answer as many questions as possible in {TIME_LIMIT_SECONDS} seconds.</p>
+          {!challengeRunning && (
+            <button style={styles.button()} onClick={startChallenge}>
+              Start Challenge
+            </button>
+          )}
+          {challengeRunning && challengeQuestions.length > 0 && (
+            <div>
+              <p><strong>Time Left: {challengeRemaining}s</strong></p>
+              <p>Score: {challengeScore} | Streak: {challengeStreak} | Best: {challengeBestStreak}</p>
+              <p>{challengeQuestions[challengeIndex].question}</p>
+              {challengeQuestions[challengeIndex].options.map((option, idx) => (
+                <button
+                  key={option}
+                  style={styles.optionButton}
+                  onClick={() => answerChallenge(idx)}
+                >
+                  {option}
+                </button>
+              ))}
+              {challengeFeedback && <p>{challengeFeedback}</p>}
+            </div>
+          )}
+          {!challengeRunning && challengeScore > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <p>
+                Final Score: {challengeScore} | Best Streak: {challengeBestStreak}
+                <span style={styles.tag("good")}>Finished</span>
+              </p>
+              <button style={styles.button()} onClick={startChallenge}>Try Again</button>
+            </div>
+          )}
+        </section>
+      )}
+    </main>
+  );
+}
